@@ -1,0 +1,56 @@
+events {
+    worker_connections 1024;
+}
+
+http {
+    # Define upstream servers with primary/backup pattern
+    upstream blue_pool {
+        server app-blue:3000 max_fails=1 fail_timeout=3s;
+        server app-green:3000 backup;
+    }
+
+    upstream green_pool {
+        server app-green:3000 max_fails=1 fail_timeout=3s;
+        server app-blue:3000 backup;
+    }
+
+    # Main server block
+    server {
+        listen 80;
+        server_name localhost;
+
+        # Health check endpoint
+        location /healthz {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+
+        # Main application
+        location / {
+            # Choose upstream based on ACTIVE_POOL
+            # Template will be: proxy_pass http://blue_pool; or green_pool;
+            proxy_pass http://$UPSTREAM_POOL;
+            
+            # Proxy settings
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # Timeout settings (tight for quick failover)
+            proxy_connect_timeout 1s;
+            proxy_send_timeout 3s;
+            proxy_read_timeout 3s;
+            
+            # Retry settings for immediate failover
+            proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            proxy_next_upstream_tries 2;
+            proxy_next_upstream_timeout 10s;
+            
+            # Don't strip headers
+            proxy_pass_request_headers on;
+            proxy_hide_header X-Powered-By;
+        }
+    }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "blue-green-app",
+  "version": "1.0.0",
+  "description": "Blue/Green deployment Node.js app",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
