@@ -106,7 +106,8 @@ class AlertState:
                 )
             self.last_pool = pool
 
-        if len(self.window) >= max(50, int(WINDOW_SIZE * 0.5)):
+        minimum_samples = max(10, int(WINDOW_SIZE * 0.5))
+        if len(self.window) >= minimum_samples:
             rate = self.error_rate_pct()
             if rate > ERROR_RATE_THRESHOLD:
                 band = int(round(rate))
