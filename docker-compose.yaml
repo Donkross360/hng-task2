@@ -46,6 +46,7 @@ services:
       - UPSTREAM_POOL=${ACTIVE_POOL}_pool
     volumes:
       - ./nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - nginx_logs:/var/log/nginx
     depends_on:
       - app-blue
       - app-green
@@ -54,3 +55,26 @@ services:
         envsubst '$$UPSTREAM_POOL' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf &&
         nginx -g 'daemon off;'
       "
+
+  # Log watcher service for Slack alerts
+  alert_watcher:
+    image: python:3.11-slim
+    container_name: alert-watcher
+    depends_on:
+      - nginx
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - ACTIVE_POOL=${ACTIVE_POOL}
+      - ERROR_RATE_THRESHOLD=${ERROR_RATE_THRESHOLD:-2}
+      - WINDOW_SIZE=${WINDOW_SIZE:-200}
+      - ALERT_COOLDOWN_SEC=${ALERT_COOLDOWN_SEC:-300}
+      - MAINTENANCE_MODE=${MAINTENANCE_MODE:-false}
+    volumes:
+      - nginx_logs:/var/log/nginx
+      - ./watcher.py:/opt/watcher/watcher.py:ro
+      - ./requirements.txt:/opt/watcher/requirements.txt:ro
+    command: >
+      sh -c "pip install --no-cache-dir -r /opt/watcher/requirements.txt && python /opt/watcher/watcher.py"
+
+volumes:
+  nginx_logs:

@@ -155,6 +155,50 @@ proxy_next_upstream_timeout 10s;
 - `app.js`: Node.js application
 - `Dockerfile`: Application container build
 
+## Observability & Alerts (Stage 3)
+
+### What’s added
+- Structured Nginx access logs written to `/var/log/nginx/access.json` including:
+  - pool, release, upstream_status, upstream_addr, request_time, upstream_response_time
+- A Python `alert_watcher` service that tails logs and posts Slack alerts for:
+  - Failovers (Blue → Green, Green → Blue)
+  - High upstream 5xx error rate over a sliding window
+
+### Setup
+1. Copy `.env.example` to `.env` and set values, especially `SLACK_WEBHOOK_URL`.
+2. Start services:
+   ```bash
+   docker-compose up -d
+   ```
+3. Verify Nginx is writing logs:
+   ```bash
+   docker-compose exec nginx sh -c 'tail -n 5 /var/log/nginx/access.json'
+   ```
+
+### Verify Slack Alerts
+1. Trigger chaos on Blue:
+   ```bash
+   curl -X POST http://localhost:8081/chaos/start?mode=error
+   ```
+2. Generate a few requests via Nginx:
+   ```bash
+   for i in {1..50}; do curl -s http://localhost:8080/version >/dev/null; done
+   ```
+3. Expect a Slack message: “Failover Detected: blue → green”.
+4. Stop chaos:
+   ```bash
+   curl -X POST http://localhost:8081/chaos/stop
+   ```
+
+### High Error Rate Alert
+- Use `mode=error` to push 5xx and drive error rate > threshold.
+- Expect Slack alert: “High Error Rate: >2% over last N requests”.
+
+### Maintenance Mode
+- Set `MAINTENANCE_MODE=true` in `.env` (restart watcher) to suppress alerts during planned toggles.
+
+See `runbook.md` for operator guidance.
+
 ## Troubleshooting
 
 ### Check Logs
